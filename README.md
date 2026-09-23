@@ -1,4 +1,5 @@
-# lipidConcentration
+# Extracellular Nutrient Availability Affects Lipid Composition in Differentiating Skeletal Muscle
+
 Statistical analyses for the impacts of extracellular nutrient availability on lipid concentrations in differentiating skeletal muscle cells. 
 
 All required data files to run the analyses in the .Rmd file are under `data`.
