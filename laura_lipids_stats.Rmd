@@ -1,0 +1,410 @@
+---
+title: "Impacts of Growth Media on Lipid Concentrations"
+author: "Dr. Sara J. Smith"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    toc: yes
+    latex_engine: xelatex
+  html_document:
+    df_print: kable
+    toc: yes
+    toc_float: yes
+editor_options:
+  chunk_output_type: console
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **Load Libraries & Data**
+
+Load necessary libraries and data, clean and refactor data.
+```{r, message = F, warning = F}
+library(readxl)
+library(lmerTest)
+library(gamlss)
+library(rstatix)
+library(DHARMa)
+library(performance)
+library(see)
+library(emmeans)
+library(fitdistrplus)
+library(PNWColors)
+library(tidyverse)
+```
+
+```{r, message = F, warning = F}
+diam <- read_excel("lipids_myotubeDiam.xlsx") %>%
+  mutate(trial = as.factor(replicate),
+         day = as.factor(day)) %>%
+  select(-replicate)
+
+lipids <- read_excel("lipids_lipids.xlsx") %>%
+  mutate(time = fct_relevel(as.factor(time), "MB"))
+
+split(lipids, lipids$lipid) %>% 
+  lapply(select, -lipid) %>% 
+  list2env(envir = .GlobalEnv)
+
+genes <- read_excel("lipids_geneExpr.xlsx") %>%
+  mutate(day = fct_relevel(as.factor(day), "MB"),
+         trial = fct_relevel(as.factor(trial), "1"))
+
+split(genes, genes$expr) %>% 
+  lapply(select, -expr) %>% 
+  list2env(envir = .GlobalEnv)
+```
+
+## **Myotube Diameter**
+
+### **Linear Modelling**
+```{r}
+diam.lmod <- lmer(diameter ~ condition * day + (1|trial), data = diam)
+diam.lres <- simulateResiduals(diam.lmod)
+plot(diam.lres) # lots of issues again - not surprising 
+```
+
+### **Distribution fitting**
+```{r}
+ggplot(diam, aes(x = diameter)) + 
+  geom_histogram() # looks gamma-y
+
+fit.gamma <- fitdist(diam$diameter, "gamma")
+fit.lnorm <- fitdist(diam$diameter, "lnorm")
+fit.norm <- fitdist(diam$diameter, "norm")
+```
+
+```{r}
+plot(fit.gamma)
+```
+
+```{r}
+plot(fit.lnorm)
+```
+
+```{r}
+plot(fit.norm)
+```
+
+```{r}
+denscomp(list(fit.gamma, fit.norm, fit.lnorm), legendtext = c("Gamma", "Normal", "Lognormal"))
+```
+
+```{r}
+gofstat(list(fit.norm, fit.gamma, fit.lnorm))$aic
+#lognormal it is
+```
+
+### **Lognormal Linear Modelling**
+```{r}
+diam.mod <- lmer(log(diameter) ~ condition * day + (1|trial), data = diam)
+diam.res <- simulateResiduals(diam.mod)
+plot(diam.res)
+```
+
+```{r}
+check_model(diam.mod) # seems fine
+```
+
+```{r}
+summary(diam.mod) # interaction term is significant
+```
+
+Condition: SP and P are sig different
+Day: time point are all sig different from day 5
+Interaction term: also sig! Need to extract main effects to parse. 
+
+Extracting simple main effects: 
+```{r}
+diam.condDay.emmeans <- emmeans(diam.mod, pairwise ~ condition | day)
+diam.condDay.emmeans
+```
+
+```{r}
+diam.dayCond.emmeans <- emmeans(diam.mod, pairwise ~ day | condition)
+diam.dayCond.emmeans
+```
+
+
+## **Lipids**
+
+### **Linear Modelling**
+
+Model and simulate residuals for each lipid separately
+```{r}
+for (code in unique(lipids$lipid)) {
+  current_data <- get(code)
+  
+  mod <- lm(concentration ~ condition * time, data = current_data)
+  res <- simulateResiduals(fittedModel = mod, plot = FALSE)
+  
+  assign(paste0(code, ".mod"), mod, envir = .GlobalEnv)
+  assign(paste0(code, ".res"), res, envir = .GlobalEnv)
+}
+```
+
+Plot residuals - no issues unless noted 
+```{r}
+plot(TAG.res) 
+plot(DAG.res)
+plot(CHOL.res)
+plot(CE.res)
+plot(FA.res)
+plot(CL.res)
+plot(PG.res)
+plot(PC.res)
+plot(PE.res)
+plot(PI.res)
+plot(PS.res)
+```
+
+### **Summaries & Extracting Estimated Marginal Means or Simple Effects**
+```{r}
+summary(TAG.mod) 
+```
+
+- P and SP are significantly different
+- MB and d7 are not sig different 
+- interaction between time point and condition is sig
+
+```{r}
+tag.emmeans <- emmeans(TAG.mod, pairwise ~ condition | time) 
+tag.emmeans
+```
+
+```{r}
+summary(DAG.mod)
+```
+
+- condition, time, and interaction are not sig 
+
+```{r}
+summary(CHOL.mod)
+```
+
+- time is sig, but not condition or interaction
+
+```{r}
+summary(CE.mod)
+```
+
+- condition, time, and interaction are sig
+
+```{r}
+ce.emmeans <- emmeans(CE.mod, pairwise ~ condition | time)
+ce.emmeans
+```
+
+```{r}
+summary(FA.mod)
+```
+
+- time is sig but not condition or interaction
+
+```{r}
+summary(FA.mod)
+```
+
+- time is sig but not condition or interaction
+
+```{r}
+summary(CL.mod)
+```
+
+- nothing is sig
+
+```{r}
+summary(PG.mod)
+```
+
+- condition, time, and interaction are sig
+
+```{r}
+pg.emmeans <- emmeans(PG.mod, pairwise ~ condition | time)
+pg.emmeans
+```
+
+```{r}
+summary(PC.mod)
+```
+
+- time and condition are sig, but not the interaction
+
+```{r}
+pc.noint.mod <- lm(concentration ~ condition + time, data = PC)
+summary(pc.noint.mod)
+```
+
+```{r}
+summary(PE.mod)
+```
+
+- time is sig, but not condition or the interaction
+
+```{r}
+summary(PI.mod)
+```
+
+- nothing is sig
+
+```{r}
+summary(PS.mod)
+```
+
+- nothing is sig
+
+
+## **Gene Expression**
+
+### **IDH**
+### **Linear Modelling**
+
+```{r}
+idh.mod <- lm(deltacq ~ condition + trial, data = idh) # model hits singularity when trial is included as a random effect 
+idh.res <- simulateResiduals(idh.mod)
+plot(idh.res) # sig issues with quantile deviations 
+```
+
+### **Distribution fitting**
+```{r}
+ggplot(idh, aes(x = deltacq)) + 
+  geom_histogram() # v little data so unsure how this will fit 
+
+fit.gamma <- fitdist(idh$deltacq, "gamma")
+fit.lnorm <- fitdist(idh$deltacq, "lnorm")
+fit.norm <-  fitdist(idh$deltacq, "norm")
+```
+
+```{r}
+plot(fit.gamma)
+```
+
+```{r}
+plot(fit.lnorm)
+```
+
+```{r}
+plot(fit.norm)
+```
+
+```{r}
+denscomp(list(fit.gamma, fit.norm, fit.lnorm), legendtext = c("Gamma", "Normal", "Lognormal"))
+```
+
+```{r}
+gofstat(list(fit.norm, fit.gamma, fit.lnorm))$aic
+# technically lognormal but I don't like any of these fits 
+```
+
+```{r, echo = F, warning = F, message = F}
+fits <- fitDist(deltacq, data = idh, type = "realplus")
+```
+```{r}
+fits$fits #BCPE but I doubt a gamlss is a good idea with this little data
+```
+
+```{r}
+# neither run with a second effect
+kruskal.test(deltacq ~ condition, data = idh)
+
+dunn_test(deltacq ~ condition, data = idh)
+```
+
+```{r}
+idh.gamlss <- gamlss(deltacq ~ condition + trial, data = idh, family = BCPE())
+
+summary(idh.gamlss)
+
+wp(idh.gamlss) # not great
+
+idh.emmeans <- emmeans(idh.gamlss, pairwise ~ condition)
+idh.emmeans
+```
+
+### **Best approach**
+
+All of the modelling approaches are either inappropriate, NaNs are produced when calculating corrected p-values, or they cannot handle trial as a random effect due to sample size. My suggestion is to go with the approach below: 
+
+```{r}
+summary(aov(deltacq ~ condition + trial, data = idh))
+```
+
+- condition and trial are NS (same results as non-parametric equivalent, Kruskal Wallis test, above)
+
+
+### **Myogenin**
+
+### **Linear Modelling**
+
+```{r}
+myo.mod <- lmer(deltacq ~ condition * day + (1 | trial), data = myogenin) # almost/near singular 
+
+myo.mod.nore <- lm(deltacq ~ condition * day + trial, data = myogenin) 
+myo.res.nore <- simulateResiduals(myo.mod.nore)
+plot(myo.res.nore) # quantile deviations sig 
+
+myo.mod.noint <- lmer(deltacq ~ condition + day + (1 | trial), data = myogenin) # still singular 
+
+myo.mod.nore.noint <- lm(deltacq ~ condition + day + trial, data = myogenin) 
+myo.res.nore.noint <- simulateResiduals(myo.mod.nore.noint)
+plot(myo.res.nore.noint) # no issues 
+```
+
+### **Summary & Simple Main Effects**
+```{r}
+summary(myo.mod.nore.noint)
+```
+
+- trial NS
+
+```{r}
+myo.mod.noTrial <- lm(deltacq ~ condition * day, data = myogenin) 
+myo.res.noTrial <- simulateResiduals(myo.mod.noTrial)
+plot(myo.res.noTrial) # sig issues, revert to myo.mod.nore.noint
+```
+
+```{r}
+myo.emmeans.dayCond <- emmeans(myo.mod.nore.noint, pairwise ~ day | condition)
+myo.emmeans.dayCond
+```
+
+- within condition, deltacq MB is sig different from day 2, day 5, and day 7 e.g., within SP, MB is sig diff from 2, 5, and 7
+
+```{r}
+myo.emmeans.condDay <- emmeans(myo.mod.nore.noint, pairwise ~ condition | day)
+myo.emmeans.condDay
+```
+
+- across days, condition is NS i.e., at day MB, 2, 5, and 7, deltacq in SP and P are not different from each other 
+
+### **PGC1 Alpha**
+### **Linear Modelling**
+
+```{r}
+pgc.mod <- lmer(deltacq ~ condition * day + (1 | trial), data = pgc1alpha)
+pgc.res <- simulateResiduals(pgc.mod)
+plot(pgc.res) # no issues! 
+```
+
+### **Summaries & Extracting Simple Effects**
+
+```{r}
+summary(pgc.mod)
+```
+
+Condition, Day, and Interaction term are sig, so extracting simple main effects 
+
+```{r}
+pgc.emmeans.condDay <- emmeans(pgc.mod, pairwise ~ condition | day)
+pgc.emmeans.condDay
+```
+
+```{r}
+pgc.emmeans.dayCond <- emmeans(pgc.mod, pairwise ~ day | condition)
+pgc.emmeans.dayCond
+```
+
