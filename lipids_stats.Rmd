@@ -61,72 +61,36 @@ split(genes, genes$expr) %>%
 
 ## **Myotube Diameter**
 
+Additional data wrangling 
+```{r}
+diam.clean <- diam %>%
+  group_by(condition, day, trial) %>%
+  summarize(avg.diam = mean(diameter))
+```
+
+
 ### **Linear Modelling**
 ```{r}
-diam.lmod <- lmer(diameter ~ condition * day + (1|trial), data = diam)
-diam.lres <- simulateResiduals(diam.lmod)
-plot(diam.lres) # lots of issues again - not surprising 
-```
-
-### **Distribution fitting**
-```{r}
-ggplot(diam, aes(x = diameter)) + 
-  geom_histogram() # looks gamma-y
-
-fit.gamma <- fitdist(diam$diameter, "gamma")
-fit.lnorm <- fitdist(diam$diameter, "lnorm")
-fit.norm <- fitdist(diam$diameter, "norm")
-```
-
-```{r}
-plot(fit.gamma)
-```
-
-```{r}
-plot(fit.lnorm)
-```
-
-```{r}
-plot(fit.norm)
-```
-
-```{r}
-denscomp(list(fit.gamma, fit.norm, fit.lnorm), legendtext = c("Gamma", "Normal", "Lognormal"))
-```
-
-```{r}
-gofstat(list(fit.norm, fit.gamma, fit.lnorm))$aic
-#lognormal it is
-```
-
-### **Lognormal Linear Modelling**
-```{r}
-diam.mod <- lmer(log(diameter) ~ condition * day + (1|trial), data = diam)
+diam.mod <- lmer(avg.diam ~ condition * day + (1|trial), data = diam.clean)
 diam.res <- simulateResiduals(diam.mod)
-plot(diam.res)
+plot(diam.res) # no issues! 
 ```
 
 ```{r}
-check_model(diam.mod) # seems fine
+summary(diam.mod) 
 ```
 
-```{r}
-summary(diam.mod) # interaction term is significant
-```
+Condition: SP and P are sig different  
+Time & Interaction: NS
 
-Condition: SP and P are sig different
-Day: time point are all sig different from day 5
-Interaction term: also sig! Need to extract main effects to parse. 
 
-Extracting simple main effects: 
+Extracting simple effects 
 ```{r}
-diam.condDay.emmeans <- emmeans(diam.mod, pairwise ~ condition | day)
-diam.condDay.emmeans
-```
+diam.emmeans <- emmeans(diam.mod, pairwise ~ condition | day)
+diam.emmeans
 
-```{r}
-diam.dayCond.emmeans <- emmeans(diam.mod, pairwise ~ day | condition)
-diam.dayCond.emmeans
+diam.day <- emmeans(diam.mod, pairwise ~ day | condition)
+diam.day
 ```
 
 
@@ -174,6 +138,9 @@ summary(TAG.mod)
 ```{r}
 tag.emmeans <- emmeans(TAG.mod, pairwise ~ condition | time) 
 tag.emmeans
+
+tag.day <- emmeans(TAG.mod, pairwise ~ time | condition) 
+tag.day
 ```
 
 ```{r}
@@ -183,10 +150,28 @@ summary(DAG.mod)
 - condition, time, and interaction are not sig 
 
 ```{r}
+dag.emmeans <- emmeans(DAG.mod, pairwise ~ time | condition) 
+dag.emmeans
+
+dag.cond <- emmeans(DAG.mod, pairwise ~ condition | time) 
+dag.cond
+```
+
+
+```{r}
 summary(CHOL.mod)
 ```
 
 - time is sig, but not condition or interaction
+
+```{r}
+chol.day <- emmeans(CHOL.mod, pairwise ~ time | condition) 
+chol.day
+
+chol.cond <- emmeans(CHOL.mod, pairwise ~ condition | time) 
+chol.cond
+```
+
 
 ```{r}
 summary(CE.mod)
@@ -197,6 +182,9 @@ summary(CE.mod)
 ```{r}
 ce.emmeans <- emmeans(CE.mod, pairwise ~ condition | time)
 ce.emmeans
+
+ce.day <- emmeans(CE.mod, pairwise ~ time | condition) 
+ce.day
 ```
 
 ```{r}
@@ -206,16 +194,28 @@ summary(FA.mod)
 - time is sig but not condition or interaction
 
 ```{r}
-summary(FA.mod)
+fa.emmeans <- emmeans(FA.mod, pairwise ~ condition | time)
+fa.emmeans
+
+fa.day <- emmeans(FA.mod, pairwise ~ time | condition) 
+fa.day
 ```
 
-- time is sig but not condition or interaction
 
 ```{r}
 summary(CL.mod)
 ```
 
 - nothing is sig
+
+```{r}
+cl.emmeans <- emmeans(CL.mod, pairwise ~ condition | time)
+cl.emmeans
+
+cl.day <- emmeans(CL.mod, pairwise ~ time | condition) 
+cl.day
+```
+
 
 ```{r}
 summary(PG.mod)
@@ -226,6 +226,9 @@ summary(PG.mod)
 ```{r}
 pg.emmeans <- emmeans(PG.mod, pairwise ~ condition | time)
 pg.emmeans
+
+pg.day <- emmeans(PG.mod, pairwise ~ time | condition) 
+pg.day
 ```
 
 ```{r}
@@ -240,10 +243,28 @@ summary(pc.noint.mod)
 ```
 
 ```{r}
+pc.emmeans <- emmeans(pc.noint.mod, pairwise ~ condition | time)
+pc.emmeans
+
+pc.day <- emmeans(pc.noint.mod, pairwise ~ time | condition) 
+pc.day
+```
+
+
+```{r}
 summary(PE.mod)
 ```
 
 - time is sig, but not condition or the interaction
+
+```{r}
+pe.emmeans <- emmeans(PE.mod, pairwise ~ condition | time)
+pe.emmeans
+
+pe.day <- emmeans(PE.mod, pairwise ~ time | condition) 
+pe.day
+```
+
 
 ```{r}
 summary(PI.mod)
@@ -252,10 +273,28 @@ summary(PI.mod)
 - nothing is sig
 
 ```{r}
+pi.emmeans <- emmeans(PI.mod, pairwise ~ condition | time)
+pi.emmeans
+
+pi.day <- emmeans(PI.mod, pairwise ~ time | condition) 
+pi.day
+```
+
+
+```{r}
 summary(PS.mod)
 ```
 
 - nothing is sig
+
+```{r}
+ps.emmeans <- emmeans(PS.mod, pairwise ~ condition | time)
+ps.emmeans
+
+ps.day <- emmeans(PS.mod, pairwise ~ time | condition) 
+ps.day
+```
+
 
 
 ## **Gene Expression**
